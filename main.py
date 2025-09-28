@@ -36,44 +36,35 @@ def getStudent(id):
     else:
         print(Fore.YELLOW + "Студент с таким ID не найден")
 
-    if conn:
-        conn.close()
+    cur.close()
+    conn.close()
 
 def getDiscipline(course_number):
     conn = getConn()
-
-    if conn is None:
+    if not conn:
         print(Fore.RED + "Ошибка подключения")
         return
     
     cur = conn.cursor()
-    
     cur.execute("SELECT name, day, pair_num FROM disciplines WHERE course_num = %s ORDER BY day, pair_num", (course_number,))
-    all_disciplines = cur.fetchall()
     
-    # Группируем по дням недели, сохраняя порядок пар
-    disciplines_by_day = {}
-    for disc in all_disciplines:
-        day = disc[1]
-        if day not in disciplines_by_day:
-            disciplines_by_day[day] = []
-        disciplines_by_day[day].append((disc[2], disc[0]))
+    days = ['понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота', 'воскресенье']
     
-    # Список дней недели в нужном порядке
-    days_of_week = ['понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота', 'воскресенье']
-    
-    # Выводим по порядку дней
-    for day in days_of_week:
-        if day in disciplines_by_day:
-            print(Fore.GREEN + f"\n{day.capitalize()}:")
-            sorted_pairs = sorted(disciplines_by_day[day], key=lambda x: x[0])
-            for pair_num, disc_name in sorted_pairs:
-                print(f"  {pair_num}. {disc_name}")
-        else:
-            print(Fore.YELLOW + f"\n{day.capitalize()}: занятий нет")
+    for day in days:
+        cur.scroll(0, mode='absolute')
+        
+        day_disciplines = [(pair_num, name) for name, d, pair_num in cur.fetchall() if d == day]
+        
+        print(Fore.GREEN + f"\n{day.capitalize()}:" if day_disciplines else Fore.YELLOW + f"\n{day.capitalize()}:")
+        
+        for pair_num, name in day_disciplines:
+            print(f"  {pair_num}. {name}")
+        
+        if not day_disciplines:
+            print("  занятий нет")
 
-    if conn:
-        conn.close()
+    cur.close()
+    conn.close()
 
 def menu():
     for x in range(3):
