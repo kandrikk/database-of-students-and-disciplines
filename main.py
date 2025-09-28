@@ -36,6 +36,9 @@ def getStudent(id):
     else:
         print(Fore.YELLOW + "Студент с таким ID не найден")
 
+    if conn:
+        conn.close()
+
 def getDiscipline(course_number):
     conn = getConn()
 
@@ -44,15 +47,35 @@ def getDiscipline(course_number):
         return
     
     cur = conn.cursor()
-    cur.execute("SELECT name FROM disciplines WHERE course_num = %s", (course_number, ))
-    discipline = cur.fetchall()
+    
+    cur.execute("SELECT name, day, pair_num FROM disciplines WHERE course_num = %s ORDER BY day, pair_num", (course_number,))
+    all_disciplines = cur.fetchall()
+    
+    # Группируем по дням недели, сохраняя порядок пар
+    disciplines_by_day = {}
+    for disc in all_disciplines:
+        day = disc[1]
+        if day not in disciplines_by_day:
+            disciplines_by_day[day] = []
+        disciplines_by_day[day].append((disc[2], disc[0]))
+    
+    # Список дней недели в нужном порядке
+    days_of_week = ['понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота', 'воскресенье']
+    
+    # Выводим по порядку дней
+    for day in days_of_week:
+        if day in disciplines_by_day:
+            print(Fore.GREEN + f"\n{day.capitalize()}:")
+            sorted_pairs = sorted(disciplines_by_day[day], key=lambda x: x[0])
+            for pair_num, disc_name in sorted_pairs:
+                print(f"  {pair_num}. {disc_name}")
+        else:
+            print(Fore.YELLOW + f"\n{day.capitalize()}: занятий нет")
 
-    print(Fore.GREEN + f"Занятия {course_number} курса: {discipline}")
+    if conn:
+        conn.close()
 
-def pressEnter():
-    input(Fore.CYAN + "Press enter...")
-
-def _menu():
+def menu():
     for x in range(3):
         print('\n')
     print(Fore.GREEN + "   Выберите команду")
@@ -73,7 +96,7 @@ def _menu():
 
 def interface():
     while True:
-        com = _menu()
+        com = menu()
         
         if com == 6:
             return
@@ -107,6 +130,9 @@ def interface():
         elif com == 5:
             print("Выбрана опция 5")
             # Код для опции 5
+
+def pressEnter():
+    input(Fore.CYAN + "Press enter...")
 
 def main():
     interface()
