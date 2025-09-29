@@ -94,18 +94,47 @@ def getDisciplines():
         return
     
     cur = conn.cursor()
-    cur.execute("SELECT * FROM disciplines")
+    cur.execute("SELECT * FROM disciplines ORDER BY id")
     
     disciplines = cur.fetchall()
     
-    print(Fore.GREEN + "Все дисциплины:")
-    print(Fore.CYAN + "ID | Название дисциплины | День недели | Номер пары | Номер курса")
+    headers = ["ID", "Название дисциплины", "День недели", "Номер пары", "Номер курса"]
+    
+    column_widths = [len(header) for header in headers]
+    
     for disc in disciplines:
-        # Преобразуем все элементы в строки и выводим через разделитель
-        print(" | ".join(str(item) for item in disc))
+        for i, value in enumerate(disc):
+            column_widths[i] = max(column_widths[i], len(str(value)))
+    
+    header_line = " | ".join(header.ljust(column_widths[i]) for i, header in enumerate(headers))
+    print(Fore.GREEN + header_line)
+    print("-" * len(header_line))
+    
+    for disc in disciplines:
+        row = " | ".join(str(value).ljust(column_widths[i]) for i, value in enumerate(disc))
+        print(row)
     
     cur.close()
     conn.close()
+
+def putStudent(name, course_num):
+    conn = getConn()
+    if not conn:
+        print(Fore.RED + "Ошибка подключения")
+        return
+    
+    cur = conn.cursor()
+    
+    try:
+        cur.execute("INSERT INTO students (name, course_num) VALUES (%s, %s)", (name, course_num))
+        conn.commit()
+        print(Fore.GREEN + f"Студент {name} успешно добавлен на курс {course_num}")
+    except psycopg2.Error as e:
+        print(Fore.RED + f"Ошибка при добавлении студента: {e}")
+        conn.rollback()
+    finally:
+        cur.close()
+        conn.close()
 
 def menu():
     for x in range(3):
@@ -166,7 +195,12 @@ def interface():
             pressEnter()
 
         elif com == 5:
-
+            try:
+                name = input("Введите имя студента: ")
+                num_course = input("Введите номер курса: ")
+                putStudent(name, num_course)
+            except ValueError:
+                print(Fore.RED + "Некоректнный ввод.")
             
             pressEnter()
 
