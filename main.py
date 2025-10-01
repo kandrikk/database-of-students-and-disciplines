@@ -1,34 +1,23 @@
 from colorama import Fore, init
 import psycopg2
-from dataclasses import dataclass
 
 init(autoreset=True)
 
-@dataclass
-class db_cfg:
-    dbname: str = 'study'
-    user: str = 'postgres'
-    password: str = 'postgres'
-    host: str = 'localhost'
-    port: int = 5432
-
 def getConn():
-    cfg = db_cfg()
-    conn = psycopg2.connect(dbname=cfg.dbname, user=cfg.user,
-                            password=cfg.password, host=cfg.host,
-                            port=cfg.port)
+    conn = psycopg2.connect(dbname='study', user='postgres',
+                            password='postgres', host='localhost',
+                            port=5432)
     
     return conn
 
 def getStudent(id):
     conn = getConn()
-
-    if conn is None:
+    if not conn:
         print(Fore.RED + "Ошибка подключения")
         return
     
     cur = conn.cursor()
-    cur.execute("SELECT * FROM student WHERE id = %s", (id, ))
+    cur.execute("SELECT * FROM students WHERE id = %s", (id, ))
     student = cur.fetchone()
 
     if student:
@@ -48,9 +37,9 @@ def getDiscipline(course_num):
     cur = conn.cursor()
     cur.execute("SELECT name, day, pair_num FROM disciplines WHERE course_num = %s ORDER BY day, pair_num", (course_num,))
     
-    days = ['понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота', 'воскресенье']
+    day_week = ['понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота', 'воскресенье']
     
-    for day in days:
+    for day in day_week:
         cur.scroll(0, mode='absolute')
         
         day_disciplines = [(pair_num, name) for name, d, pair_num in cur.fetchall() if d == day]
@@ -136,21 +125,93 @@ def putStudent(name, course_num):
         cur.close()
         conn.close()
 
+def putDiscipline(name, day, pair_num, course_num):
+    day_week = ["понедельник", "вторник", "среда", "четверг", "пятница"]
+
+    if (day not in day_week) or (pair_num > 9) or (course_num > 8):
+        print(Fore.RED + "Некоректнные данные")
+        return
+
+    conn = getConn()
+    if not conn:
+        print(Fore.RED + "Ошибка подключения")
+        return
+    
+    cur = conn.cursor()
+    
+    try:
+        cur.execute("INSERT INTO disciplines (name, day, pair_num, course_num) VALUES (%s, %s, %s, %s)"
+                    , (name, day, pair_num, course_num))
+        conn.commit()
+        print(Fore.GREEN + f"Дисциплина {name} успешно добавлена на курс {course_num} в {day}, {pair_num} парой")
+    except psycopg2.Error as e:
+        print(Fore.RED + f"Ошибка при добавлении дисциплина: {e}")
+        conn.rollback()
+    finally:
+        cur.close()
+        conn.close()
+
+def deleteStudent(id):
+    conn = getConn()
+    if not conn:
+        print(Fore.RED + "Ошибка подключения")
+        return
+    
+    cur = conn.cursor()
+
+    try:
+        cur.execute("DELETE FROM students WHERE id = %s", (id, ))
+
+        conn.commit()
+        print(Fore.GREEN + f"Студент с ID = {id} удален.")
+    except psycopg2.Error as e:
+        print(Fore.RED + f"Ошибка при удаление студента: {e}")
+        conn.rollback()
+    finally:
+        cur.close()
+        conn.close()
+
+
+def deleteDiscipline(id):
+    conn = getConn()
+    if not conn:
+        print(Fore.RED + "Ошибка подключения")
+        return
+    
+    cur = conn.cursor()
+
+    try:
+        cur.execute("DELETE FROM disciplines WHERE id = %s", (id, ))
+
+        conn.commit()
+        print(Fore.GREEN + f"Занятия с ID = {id} удалено.")
+    except psycopg2.Error as e:
+        print(Fore.RED + f"Ошибка при удаление занятия: {e}")
+        conn.rollback()
+    finally:
+        cur.close()
+        conn.close()
+
 def menu():
     for x in range(3):
         print('\n')
+        
     print(Fore.GREEN + "   Выберите команду")
-    print("1.Найти студента по id.")
-    print("2.Все занятия по номеру курса.")
-    print("3.Список всех студентов по номеру курса.")
-    print("4.Полное рассписание дисциплин.")
-    print("5.Добавить нового студента.")
-    print("6.Выйти.")
+    print("a.Найти студента по ID.")
+    print("b.Все занятия по номеру курса.")
+    print("c.Список всех студентов по номеру курса.")
+    print("d.Полное рассписание дисциплин.")
+    print("e.Добавить нового студента.")
+    print("f.Добавить занятия в расписание.")
+    print("g.Удаление студента по ID.")
+    print("h.Удаление занятия по ID.")
+    print("i.Выйти.")
 
-    try:
-        command = int(input("\nВведите команду: "))
-    except ValueError:
-        print(Fore.RED + "Некоректнный ввод.")
+    varib = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i']
+    command = input("\nВведите команду: ")
+    if command not in varib:
+        print(Fore.RED + "Некоректный ввод.")
+        pressEnter()
         return 0
 
     return command
@@ -158,11 +219,8 @@ def menu():
 def interface():
     while True:
         com = menu()
-        
-        if com == 6:
-            return
 
-        elif com == 1:
+        if com == 'a':
             try:
                 id = int(input("Введите id студента: "))
                 getStudent(id)
@@ -171,7 +229,7 @@ def interface():
             
             pressEnter()
 
-        elif com == 2:
+        elif com == 'b':
             try:
                 num = int(input("Введите номер курса: "))
                 getDiscipline(num)
@@ -180,7 +238,7 @@ def interface():
             
             pressEnter()
 
-        elif com == 3:
+        elif com == 'c':
             try:
                 num = int(input("Введите номер курса: "))
                 getStudents(num)
@@ -189,20 +247,57 @@ def interface():
 
             pressEnter()
 
-        elif com == 4:
+        elif com == 'd':
             getDisciplines()
 
             pressEnter()
 
-        elif com == 5:
+        elif com == 'e':
             try:
                 name = input("Введите имя студента: ")
-                num_course = input("Введите номер курса: ")
+                num_course = int(input("Введите номер курса: "))
                 putStudent(name, num_course)
             except ValueError:
                 print(Fore.RED + "Некоректнный ввод.")
             
             pressEnter()
+
+        elif com == 'f':
+            try:
+                name = input("Введите название дисциплины: ")
+                day = input("Введите день занятия: ").strip()
+                pair_num = int(input("Введите номер пары: "))
+                course_num = int(input("Введите номер курса: "))
+
+                putDiscipline(name, day, pair_num, course_num)
+
+            except ValueError:
+                print(Fore.RED + "Некоректнный ввод")
+
+            pressEnter()
+
+        elif com == 'g':
+            try:
+                id = int(input("Введите ID: "))
+                deleteStudent(id)
+                
+            except ValueError:
+                print(Fore.RED + "Некоректнный ввод")
+
+            pressEnter()
+
+        elif com == 'h':
+            try:
+                id = int(input("Введите ID: "))
+                deleteDiscipline(id)
+                
+            except ValueError:
+                print(Fore.RED + "Некоректнный ввод")
+
+            pressEnter()
+
+        elif com == 'i':
+            return
 
 def pressEnter():
     input(Fore.CYAN + "Press enter...")
