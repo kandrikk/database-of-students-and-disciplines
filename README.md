@@ -14,6 +14,6 @@
     После создания таблицы имортировал в нее данные из файла students.csv.
 
     Итоговая таблица: 
-    LAB_2/screenshot/students_table.png
+    ![Таблица студентов](screenshot/students_table.png)
 
     
