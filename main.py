@@ -3,22 +3,66 @@ import psycopg2
 
 init(autoreset=True)
 
+MAX_COURSE = 8
+MIN_COURSE = 1
 DAY_WEEK = ['понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота']
 
 def getConn():
-    conn = psycopg2.connect(dbname='study', user='postgres',
-                            password='postgres', host='localhost',
-                            port=5432)
-    
-    return conn
+    try:
+        conn = psycopg2.connect(dbname='study', user='postgres',
+                                password='postgres', host='localhost',
+                                port=5432)
+        
+        return conn
+    except psycopg2.Error:
+        return None
 
-def getStudent(id):
-    conn = getConn()
-    if not conn:
-        print(Fore.RED + "Ошибка подключения.")
-        return
-    
-    cur = conn.cursor()
+def db_conn(fn):
+    def template(*args, **params):
+        conn = None
+        try:
+            conn = getConn()
+            if not conn:
+                print(Fore.RED + "Ошибка подключения.\nПроверьте работу базы данных.")
+                return
+
+            with conn.cursor() as cur:
+                return fn(cur, *args, **params)
+            
+        finally:
+            if conn:
+                conn.close()
+        
+    return template
+
+def db_conn_and_commit(fn):
+    def template(*args, **params):
+        conn = None
+        try:
+            conn = getConn()
+            if not conn:
+                print(Fore.RED + "Ошибка подключения.\nПроверьте работу базы данных.")
+                return
+
+            with conn.cursor() as cur:
+                result =  fn(cur, *args, **params)
+                conn.commit()
+                return result
+            
+        except Exception as e:
+            print(Fore.RED + f"Ошибка: {e}")
+            if conn:
+                conn.rollback()
+            
+        finally:
+            if conn:
+                conn.close()
+        
+    return template
+
+        
+@db_conn
+def getStudent(cur, id):
     cur.execute("""SELECT * FROM students 
                 WHERE id = %s"""
                 , (id, ))
@@ -31,20 +75,12 @@ def getStudent(id):
     else:
         print(Fore.YELLOW + "Студента с данным ID не существует.")
 
-    cur.close()
-    conn.close()
-
-def getDiscipline(course):
-    if course > 8 or course < 1:
-        print(Fore.YELLOW + f"Некорректные данные номера курса.")
+@db_conn
+def getDiscipline(cur, course):
+    if course > MAX_COURSE or course < MIN_COURSE:
+        print(Fore.YELLOW + f"{course} курса не существует.")
         return
 
-    conn = getConn()
-    if not conn:
-        print(Fore.RED + "Ошибка подключения.")
-        return
-    
-    cur = conn.cursor()
     cur.execute("""SELECT discipline_name, day, pair_number 
                 FROM disciplines 
                 WHERE course = %s 
@@ -54,8 +90,6 @@ def getDiscipline(course):
     all_disciplines = cur.fetchall()
     if not all_disciplines:
         print(Fore.YELLOW + f"Занятий на {course} курсе нет.")
-        cur.close()
-        conn.close()
         return
     
     for day in DAY_WEEK:
@@ -73,20 +107,12 @@ def getDiscipline(course):
             print(Fore.YELLOW + f"\n{day.capitalize()}:")
             print("  занятий нет")
 
-    cur.close()
-    conn.close()
-
-def getStudents(course):
-    if course > 8 or course < 1:
-        print(Fore.YELLOW + f"Курса по {course} не существует.")
-        return
-
-    conn = getConn()
-    if not conn:
-        print(Fore.RED + "Ошибка подключения.")
+@db_conn
+def getStudents(cur, course):
+    if course > MAX_COURSE or course < MIN_COURSE:
+        print(Fore.YELLOW + f"{course} курса не существует.")
         return
     
-    cur = conn.cursor()
     cur.execute("""SELECT name FROM students 
                 WHERE course = %s 
                 ORDER BY name"""
@@ -100,17 +126,9 @@ def getStudents(course):
             print(f"  - {student[0]}")
     else:
         print(Fore.YELLOW + f"На курсе {course} студентов не найдено.")
-    
-    cur.close()
-    conn.close()
 
-def getDisciplines():
-    conn = getConn()
-    if not conn:
-        print(Fore.RED + "Ошибка подключения.")
-        return
-    
-    cur = conn.cursor()
+@db_conn
+def getDisciplines(cur):
     cur.execute("""SELECT * FROM disciplines 
                 ORDER BY id""")
     
@@ -123,176 +141,98 @@ def getDisciplines():
     print(Fore.CYAN + "(ID, Название дисциплины, День недели, Номер пары, Номер курса)")
     for disc in disciplines:
         print(disc)
-    
-    cur.close()
-    conn.close()
 
-def putStudent(name, course):
-    if name == '' or course < 1 or course > 8:
+@db_conn_and_commit
+def putStudent(cur, name, course):
+    if name == '' or course < MIN_COURSE or course > MAX_COURSE:
         print(Fore.RED + "Некорректные данные.")
         return
-        
-    conn = getConn()
-    if not conn:
-        print(Fore.RED + "Ошибка подключения.")
-        return
     
-    cur = conn.cursor()
+    cur.execute("""INSERT INTO students (name, course)
+                VALUES (%s, %s)"""
+                , (name, course))
     
-    try:
-        cur.execute("""INSERT INTO students (name, course)
-                    VALUES (%s, %s)"""
-                    , (name, course))
-        
-        conn.commit()
-        print(Fore.GREEN + f"Студент {name} успешно добавлен на курс {course}")
-    except psycopg2.Error as e:
-        print(Fore.RED + f"Ошибка при добавлении студента: {e}")
-        conn.rollback()
-    finally:
-        cur.close()
-        conn.close()
 
-def putDiscipline(name, day, pair_number, course):
+    print(Fore.GREEN + f"Студент {name} успешно добавлен на курс {course}")
 
+@db_conn_and_commit
+def putDiscipline(cur, name, day, pair_number, course):
     day = day.strip().lower()
 
-    if (name == '') or (day not in DAY_WEEK) or (pair_number > 9) or (pair_number < 1) or (course > 8) or (course < 1):
-        print(Fore.RED + "Некорректные данные.")
+    if (name == '' or day not in DAY_WEEK
+        or course > MAX_COURSE or course < MIN_COURSE
+        or pair_number > 9 or pair_number < 1):
+        print(Fore.RED + "Некоректные данные.")
         return
 
-    conn = getConn()
-    if not conn:
-        print(Fore.RED + "Ошибка подключения.")
+    cur.execute("""SELECT * FROM disciplines 
+                WHERE day = %s AND pair_number = %s AND course = %s"""
+                , (day, pair_number, course))
+    
+    disc = cur.fetchone()
+
+    if disc:
+        print(Fore.YELLOW + "Занятие с такими параметрами имеется в расписание.")
         return
-    
-    cur = conn.cursor()
-    
-    try:
-        cur.execute("""SELECT * FROM disciplines 
-                    WHERE day = %s AND pair_number = %s AND course = %s"""
-                    , (day, pair_number, course))
+
+    cur.execute("""INSERT INTO disciplines (discipline_name, day, pair_number, course)
+                VALUES (%s, %s, %s, %s)"""
+                , (name, day, pair_number, course))
         
-        disc = cur.fetchone()
+    print(Fore.GREEN + f"Дисциплина успешно добавлена.")
 
-        if disc:
-            print(Fore.YELLOW + "Занятие с такими параметрами имеется в расписание.")
-            return
-
-        cur.execute("""INSERT INTO disciplines (discipline_name, day, pair_number, course)
-                    VALUES (%s, %s, %s, %s)"""
-                    , (name, day, pair_number, course))
-        
-        conn.commit()
-        print(Fore.GREEN + f"Дисциплина успешно добавлена.")
-    except psycopg2.Error as e:
-        print(Fore.RED + f"Ошибка при добавлении дисциплина: {e}")
-        conn.rollback()
-    finally:
-        cur.close()
-        conn.close()
-
-def deleteStudent(id):
-    conn = getConn()
-    if not conn:
-        print(Fore.RED + "Ошибка подключения.")
-        return
-    
-    cur = conn.cursor()
-
+@db_conn_and_commit
+def deleteStudent(cur, id):
     cur.execute("""SELECT * FROM students 
                 WHERE id = %s"""
                 , (id, ))
     
-    st = cur.fetchone()
-    if not st:
+    student = cur.fetchone()
+    if not student:
         print(Fore.YELLOW + "Студента с данным ID не существует.")
-        cur.close()
-        conn.close()
         return
 
-    try:
-        cur.execute("""DELETE FROM students 
-                    WHERE id = %s"""
-                    , (id, ))
-        
-        conn.commit()
-        print(Fore.GREEN + f"Студент с ID {id} удален.")
-    except psycopg2.Error as e:
-        print(Fore.RED + f"Ошибка при удаление студента: {e}")
-        conn.rollback()
-    finally:
-        cur.close()
-        conn.close()
+    cur.execute("""DELETE FROM students 
+                WHERE id = %s"""
+                , (id, ))
+
+    print(Fore.GREEN + f"Студент с ID {id} удален.")
 
 
-def deleteDiscipline(id):
-    conn = getConn()
-    if not conn:
-        print(Fore.RED + "Ошибка подключения.")
-        return
-    
-    cur = conn.cursor()
-
+@db_conn_and_commit
+def deleteDiscipline(cur, id):
     cur.execute("""SELECT * FROM disciplines 
                 WHERE id = %s"""
                 , (id, ))
     
-    dn = cur.fetchone()
-    if not dn:
+    discipline = cur.fetchone()
+    if not discipline:
         print(Fore.YELLOW + "Занятия с данным ID не существует.")
-        cur.close()
-        conn.close()
         return
 
-    try:
-        cur.execute("""DELETE FROM disciplines 
-                    WHERE id = %s"""
-                    , (id, ))
-        
-        conn.commit()
-        print(Fore.GREEN + f"Занятие с ID {id} удалено.")
-    except psycopg2.Error as e:
-        print(Fore.RED + f"Ошибка при удаление занятия: {e}")
-        conn.rollback()
-    finally:
-        cur.close()
-        conn.close()
-
-
-def getAllStudents():
-    conn = getConn()
-    if not conn:
-        print(Fore.RED + "Ошибка подключения.")
-        return
+    cur.execute("""DELETE FROM disciplines 
+                WHERE id = %s"""
+                , (id, ))
     
-    cur = conn.cursor()
+    print(Fore.GREEN + f"Занятие с ID {id} удалено.")
 
+
+@db_conn
+def getAllStudents(cur):
     cur.execute("""SELECT * FROM students 
                 ORDER BY id""")
 
     students = cur.fetchall()
     if not students:
         print(Fore.YELLOW + "Хранилище студентов пустое.")
-        cur.close()
-        conn.close()
         return
     
     print(Fore.CYAN + "(ID, Имя студента, Номер курса)")
     for stud in students:
         print(stud)
-    
-    cur.close()
-    conn.close()
 
-    
-def getDisciplineId(id):
-    conn = getConn()
-    if not conn:
-        print(Fore.RED + "Ошибка подключения.")
-        return
-    
-    cur = conn.cursor()
+@db_conn
+def getDisciplineId(cur, id):
     cur.execute("""SELECT * FROM disciplines 
                 WHERE id = %s"""
                 , (id, ))
@@ -304,9 +244,6 @@ def getDisciplineId(id):
         print(f"Название дисциплины: {disc[1]} \nДень: {disc[2]} \nНомер пары: {disc[3]} \nНомер курса: {disc[4]}")
     else:
         print(Fore.YELLOW + "Занятия с данным ID не существует.")
-
-    cur.close()
-    conn.close()
 
 
 def menu():
@@ -326,7 +263,7 @@ def menu():
     varib = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'j', 'k', 'i']
     command = input("\nВведите команду: ")
     if command not in varib:
-        print(Fore.RED + "Некоректный ввод.")
+        print(Fore.RED + "Некорректный ввод.")
         pressEnter()
         return 0
 
@@ -334,99 +271,61 @@ def menu():
 
 def interface():
     while True:
-        com = menu()
+        command = menu()
 
-        if com == 'a':
-            try:
+        try:
+            if command == 'a':
                 id = int(input("Введите ID студента: "))
                 getStudent(id)
-            except ValueError:
-                print(Fore.RED + "ID некоректнный.")
-            
-            pressEnter()
 
-        elif com == 'b':
-            try:
+            elif command == 'b':
                 num = int(input("Введите номер курса: "))
                 getDiscipline(num)
-            except ValueError:
-                print(Fore.RED + "Некоректнный ввод.")
-            
-            pressEnter()
 
-        elif com == 'c':
-            try:
+            elif command == 'c':
                 num = int(input("Введите номер курса: "))
                 getStudents(num)
-            except ValueError:
-                print(Fore.RED + "Некоректнный ввод.")
 
-            pressEnter()
+            elif command == 'd':
+                getDisciplines()
 
-        elif com == 'd':
-            getDisciplines()
-
-            pressEnter()
-
-        elif com == 'e':
-            try:
+            elif command == 'e':
                 name = input("Введите имя студента: ")
                 num_course = int(input("Введите номер курса: "))
                 putStudent(name, num_course)
-            except ValueError:
-                print(Fore.RED + "Некоректнный ввод.")
-            
-            pressEnter()
 
-        elif com == 'f':
-            try:
+            elif command == 'f':
                 name = input("Введите название дисциплины: ")
                 day = input("Введите день занятия: ")
                 pair_number = int(input("Введите номер пары: "))
                 course = int(input("Введите номер курса: "))
 
                 putDiscipline(name, day, pair_number, course)
-            except ValueError:
-                print(Fore.RED + "Некоректнный ввод.")
 
-            pressEnter()
-
-        elif com == 'g':
-            try:
+            elif command == 'g':
                 id = int(input("Введите ID: "))
                 deleteStudent(id)
-                
-            except ValueError:
-                print(Fore.RED + "Некоректнный ввод.")
 
-            pressEnter()
-
-        elif com == 'h':
-            try:
+            elif command == 'h':
                 id = int(input("Введите ID: "))
                 deleteDiscipline(id)
-                
-            except ValueError:
-                print(Fore.RED + "Некоректнный ввод.")
 
-            pressEnter()
+            elif command == 'j':
+                getAllStudents()
 
-        elif com == 'j':
-            getAllStudents()
-
-            pressEnter()
-
-        elif com == 'k':
-            try:
+            elif command == 'k':
                 id = int(input("Введите ID: "))
                 getDisciplineId(id)
-            except ValueError:
-                print(Fore.RED + "Некоректнный ввод.")
 
-            pressEnter()
-
-        elif com == 'i':
-            return
+            elif command == 'i':
+                return
+            
+        except ValueError:
+            print(Fore.RED + "Некорректный ввод.")
+            
+        finally:
+            if command not in 'i':
+                pressEnter()
 
 def pressEnter():
     input(Fore.CYAN + "Press enter...")
