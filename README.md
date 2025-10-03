@@ -21,10 +21,11 @@ CREATE TABLE students (
 ```
 
 В качестве ограничений целостности использовал "SERIAL PRIMARY KEY", "NOT NULL", "CHECK".
+
 ![Созданная таблица студентов](screenshots/empty_students_table.png)
 
-После создания таблицы имортировал в нее данные из файла students.csv.
-Итоговая таблица: 
+После создания таблицы импортировал в нее данные из файла students.csv.
+
 ![Заполненная таблица студентов](screenshots/students_table.png)
 
 ## Пункт 3
@@ -44,9 +45,9 @@ CREATE TABLE disciplines (
 ```
 
 В качестве ограничений целостности использовал "SERIAL PRIMARY KEY" , "NOT NULL" , "CHECK".
+
 ![Созданная таблица дисциплинн](screenshots/empty_disciplines_table.png)
 
 После создания таблицы , вставил различные занятия для разных курсов.
 
 ![Заполненная таблица дисциплинн](screenshots/disciplines_table.png)
-
