@@ -3,6 +3,8 @@ import psycopg2
 
 init(autoreset=True)
 
+DAY_WEEK = ['понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота']
+
 def getConn():
     conn = psycopg2.connect(dbname='study', user='postgres',
                             password='postgres', host='localhost',
@@ -17,7 +19,10 @@ def getStudent(id):
         return
     
     cur = conn.cursor()
-    cur.execute("SELECT * FROM students WHERE id = %s", (id, ))
+    cur.execute("""SELECT * FROM students 
+                WHERE id = %s"""
+                , (id, ))
+    
     student = cur.fetchone()
 
     if student:
@@ -40,29 +45,32 @@ def getDiscipline(course):
         return
     
     cur = conn.cursor()
-    cur.execute("SELECT discipline_name, day, pair_number FROM disciplines WHERE course = %s ORDER BY day, pair_number"
+    cur.execute("""SELECT discipline_name, day, pair_number 
+                FROM disciplines 
+                WHERE course = %s 
+                ORDER BY day, pair_number"""
                 , (course,))
     
-    check = cur.fetchall()
-    if not check:
+    all_disciplines = cur.fetchall()
+    if not all_disciplines:
         print(Fore.YELLOW + f"Занятий на {course} курсе нет.")
         cur.close()
         conn.close()
         return
     
-    day_week = ['понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота', 'воскресенье']
-    
-    for day in day_week:
-        cur.scroll(0, mode='absolute')
+    for day in DAY_WEEK:
+        day_disciplines = []
+        for name, d, pair_number in all_disciplines:
+            if d == day:
+                day_disciplines.append((pair_number, name))
         
-        day_disciplines = [(pair_number, name) for name, d, pair_number in cur.fetchall() if d == day]
-        
-        print(Fore.GREEN + f"\n{day.capitalize()}:" if day_disciplines else Fore.YELLOW + f"\n{day.capitalize()}:")
-        
-        for pair_number, name in day_disciplines:
-            print(f"  {pair_number}. {name}")
-        
-        if not day_disciplines:
+        if day_disciplines:
+            print(Fore.GREEN + f"\n{day.capitalize()}:")
+            for pair_number, name in day_disciplines:
+                print(f"  {pair_number}. {name}")
+
+        else: 
+            print(Fore.YELLOW + f"\n{day.capitalize()}:")
             print("  занятий нет")
 
     cur.close()
@@ -79,7 +87,10 @@ def getStudents(course):
         return
     
     cur = conn.cursor()
-    cur.execute("SELECT name FROM students WHERE course = %s ORDER BY name", (course,))
+    cur.execute("""SELECT name FROM students 
+                WHERE course = %s 
+                ORDER BY name"""
+                , (course,))
     
     students = cur.fetchall()
     
@@ -100,7 +111,9 @@ def getDisciplines():
         return
     
     cur = conn.cursor()
-    cur.execute("SELECT * FROM disciplines ORDER BY id")
+    cur.execute("""SELECT * FROM disciplines 
+                ORDER BY id""")
+    
     disciplines = cur.fetchall()
 
     if not disciplines:
@@ -127,7 +140,10 @@ def putStudent(name, course):
     cur = conn.cursor()
     
     try:
-        cur.execute("INSERT INTO students (name, course) VALUES (%s, %s)", (name, course))
+        cur.execute("""INSERT INTO students (name, course)
+                    VALUES (%s, %s)"""
+                    , (name, course))
+        
         conn.commit()
         print(Fore.GREEN + f"Студент {name} успешно добавлен на курс {course}")
     except psycopg2.Error as e:
@@ -138,11 +154,10 @@ def putStudent(name, course):
         conn.close()
 
 def putDiscipline(name, day, pair_number, course):
-    day_week = ['понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота', 'воскресенье']
 
     day = day.strip().lower()
 
-    if (name == '') or (day not in day_week) or (pair_number > 9) or (pair_number < 1) or (course > 8) or (course < 1):
+    if (name == '') or (day not in DAY_WEEK) or (pair_number > 9) or (pair_number < 1) or (course > 8) or (course < 1):
         print(Fore.RED + "Некорректные данные.")
         return
 
@@ -154,7 +169,8 @@ def putDiscipline(name, day, pair_number, course):
     cur = conn.cursor()
     
     try:
-        cur.execute("SELECT * FROM disciplines WHERE day = %s AND pair_number = %s AND course = %s"
+        cur.execute("""SELECT * FROM disciplines 
+                    WHERE day = %s AND pair_number = %s AND course = %s"""
                     , (day, pair_number, course))
         
         disc = cur.fetchone()
@@ -163,8 +179,10 @@ def putDiscipline(name, day, pair_number, course):
             print(Fore.YELLOW + "Занятие с такими параметрами имеется в расписание.")
             return
 
-        cur.execute("INSERT INTO disciplines (discipline_name, day, pair_number, course) VALUES (%s, %s, %s, %s)"
+        cur.execute("""INSERT INTO disciplines (discipline_name, day, pair_number, course)
+                    VALUES (%s, %s, %s, %s)"""
                     , (name, day, pair_number, course))
+        
         conn.commit()
         print(Fore.GREEN + f"Дисциплина успешно добавлена.")
     except psycopg2.Error as e:
@@ -182,7 +200,10 @@ def deleteStudent(id):
     
     cur = conn.cursor()
 
-    cur.execute("SELECT * FROM students WHERE id = %s", (id, ))
+    cur.execute("""SELECT * FROM students 
+                WHERE id = %s"""
+                , (id, ))
+    
     st = cur.fetchone()
     if not st:
         print(Fore.YELLOW + "Студента с данным ID не существует.")
@@ -191,7 +212,10 @@ def deleteStudent(id):
         return
 
     try:
-        cur.execute("DELETE FROM students WHERE id = %s", (id, ))
+        cur.execute("""DELETE FROM students 
+                    WHERE id = %s"""
+                    , (id, ))
+        
         conn.commit()
         print(Fore.GREEN + f"Студент с ID {id} удален.")
     except psycopg2.Error as e:
@@ -210,7 +234,10 @@ def deleteDiscipline(id):
     
     cur = conn.cursor()
 
-    cur.execute("SELECT * FROM disciplines WHERE id = %s", (id, ))
+    cur.execute("""SELECT * FROM disciplines 
+                WHERE id = %s"""
+                , (id, ))
+    
     dn = cur.fetchone()
     if not dn:
         print(Fore.YELLOW + "Занятия с данным ID не существует.")
@@ -219,7 +246,10 @@ def deleteDiscipline(id):
         return
 
     try:
-        cur.execute("DELETE FROM disciplines WHERE id = %s", (id, ))
+        cur.execute("""DELETE FROM disciplines 
+                    WHERE id = %s"""
+                    , (id, ))
+        
         conn.commit()
         print(Fore.GREEN + f"Занятие с ID {id} удалено.")
     except psycopg2.Error as e:
@@ -238,7 +268,8 @@ def getAllStudents():
     
     cur = conn.cursor()
 
-    cur.execute("SELECT * FROM students ORDER BY id")
+    cur.execute("""SELECT * FROM students 
+                ORDER BY id""")
 
     students = cur.fetchall()
     if not students:
@@ -262,7 +293,10 @@ def getDisciplineId(id):
         return
     
     cur = conn.cursor()
-    cur.execute("SELECT * FROM disciplines WHERE id = %s", (id, ))
+    cur.execute("""SELECT * FROM disciplines 
+                WHERE id = %s"""
+                , (id, ))
+    
     disc = cur.fetchone()
 
     if disc:
