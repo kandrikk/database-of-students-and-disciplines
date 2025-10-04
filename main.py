@@ -28,10 +28,14 @@ def db_conn(fn):
             conn = getConn()
             if not conn:
                 print(Fore.RED + "Ошибка подключения.\nПроверьте работу базы данных.")
-                return
+                return None
 
             with conn.cursor() as cur:
                 return fn(cur, *args, **params)
+            
+        except Exception as e:
+            print(Fore.RED + f"Ошибка: {e}")
+            return None
             
         finally:
             if conn:
@@ -46,7 +50,7 @@ def db_conn_and_commit(fn):
             conn = getConn()
             if not conn:
                 print(Fore.RED + "Ошибка подключения.\nПроверьте работу базы данных.")
-                return
+                return None
 
             with conn.cursor() as cur:
                 result = fn(cur, *args, **params)
@@ -58,6 +62,8 @@ def db_conn_and_commit(fn):
             if conn:
                 conn.rollback()
             
+            return None
+        
         finally:
             if conn:
                 conn.close()
@@ -302,7 +308,7 @@ def interface():
                     putStudent(name, num_course)
 
                 else:
-                    print(Fore.RED + "Некорректные данные имени.")
+                    print(Fore.RED + "Некорректное имя студента.")
 
             elif command == 'f':
                 name = input("Введите название дисциплины: ")
@@ -317,10 +323,10 @@ def interface():
                         course = int(input("Введите номер курса: "))
                         putDiscipline(name, day, pair_number, course)
                     
-                    else:print(Fore.RED + "Некорректные данные название.")
+                    else:print(Fore.RED + "Некорректное название дисциплины.")
 
                 else:
-                    print(Fore.RED + "Некорректные данные имени.")
+                    print(Fore.RED + "Некорректное имя студента.")
 
             elif command == 'g':
                 id = int(input("Введите ID: "))
@@ -348,7 +354,7 @@ def interface():
             print(Fore.RED + "Некорректный ввод.")
             
         finally:
-            if command == '' or command not in 'i':
+            if command != 'i':
                 pressEnter()
 
 def pressEnter():
