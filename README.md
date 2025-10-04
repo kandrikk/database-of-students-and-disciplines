@@ -30,7 +30,7 @@ CREATE TABLE students (
 
 ## Пункт 3
 
-Создал таблицу disciplines :  
+Создал таблицу disciplines:  
 
 ```sql
 CREATE TABLE disciplines (

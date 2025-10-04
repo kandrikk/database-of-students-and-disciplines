@@ -5,6 +5,10 @@ init(autoreset=True)
 
 MAX_COURSE = 8
 MIN_COURSE = 1
+MAX_PAIR_NUMBER = 9
+MIN_PAIR_NUMBER = 1
+MAX_NAME_LEN = 255
+MIN_NAME_LEN = 1
 DAY_WEEK = ['понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота']
 
 def getConn():
@@ -45,7 +49,7 @@ def db_conn_and_commit(fn):
                 return
 
             with conn.cursor() as cur:
-                result =  fn(cur, *args, **params)
+                result = fn(cur, *args, **params)
                 conn.commit()
                 return result
             
@@ -144,7 +148,14 @@ def getDisciplines(cur):
 
 @db_conn_and_commit
 def putStudent(cur, name, course):
-    if name == '' or course < MIN_COURSE or course > MAX_COURSE:
+    name = name.strip()
+
+    valid = (
+        MIN_NAME_LEN <= len(name) <= MAX_NAME_LEN and
+        MIN_COURSE <= course <= MAX_COURSE
+    )
+
+    if not valid:
         print(Fore.RED + "Некорректные данные.")
         return
     
@@ -157,12 +168,18 @@ def putStudent(cur, name, course):
 
 @db_conn_and_commit
 def putDiscipline(cur, name, day, pair_number, course):
+    name = name.strip()
     day = day.strip().lower()
 
-    if (name == '' or day not in DAY_WEEK
-        or course > MAX_COURSE or course < MIN_COURSE
-        or pair_number > 9 or pair_number < 1):
-        print(Fore.RED + "Некоректные данные.")
+    valid = (
+        MIN_NAME_LEN <= len(name) <= MAX_NAME_LEN and
+        day in DAY_WEEK and
+        MIN_COURSE <= course <= MAX_COURSE and
+        MIN_PAIR_NUMBER <= pair_number <= MAX_PAIR_NUMBER
+    )
+
+    if not valid:
+        print(Fore.RED + "Некорректные данные.")
         return
 
     cur.execute("""SELECT * FROM disciplines 
@@ -172,7 +189,7 @@ def putDiscipline(cur, name, day, pair_number, course):
     disc = cur.fetchone()
 
     if disc:
-        print(Fore.YELLOW + "Занятие с такими параметрами имеется в расписание.")
+        print(Fore.YELLOW + "Занятие с такими параметрами имеется в расписании.")
         return
 
     cur.execute("""INSERT INTO disciplines (discipline_name, day, pair_number, course)
@@ -260,18 +277,10 @@ def menu():
     print("k. Найти занятие по ID.")
     print("i. Выйти.")
 
-    varib = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'j', 'k', 'i']
-    command = input("\nВведите команду: ")
-    if command not in varib:
-        print(Fore.RED + "Некорректный ввод.")
-        pressEnter()
-        return 0
-
-    return command
-
 def interface():
     while True:
-        command = menu()
+        menu()
+        command = input("\nВведите команду: ")
 
         try:
             if command == 'a':
@@ -320,11 +329,15 @@ def interface():
             elif command == 'i':
                 return
             
+            else:
+                print(Fore.RED + "Некорректный ввод.")
+
+            
         except ValueError:
             print(Fore.RED + "Некорректный ввод.")
             
         finally:
-            if command not in 'i':
+            if command == '' or command not in 'i':
                 pressEnter()
 
 def pressEnter():
