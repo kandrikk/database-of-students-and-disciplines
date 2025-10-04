@@ -148,8 +148,6 @@ def getDisciplines(cur):
 
 @db_conn_and_commit
 def putStudent(cur, name, course):
-    name = name.strip()
-
     valid = (
         MIN_NAME_LEN <= len(name) <= MAX_NAME_LEN and
         MIN_COURSE <= course <= MAX_COURSE
@@ -168,9 +166,6 @@ def putStudent(cur, name, course):
 
 @db_conn_and_commit
 def putDiscipline(cur, name, day, pair_number, course):
-    name = name.strip()
-    day = day.strip().lower()
-
     valid = (
         MIN_NAME_LEN <= len(name) <= MAX_NAME_LEN and
         day in DAY_WEEK and
@@ -288,28 +283,44 @@ def interface():
                 getStudent(id)
 
             elif command == 'b':
-                num = int(input("Введите номер курса: "))
-                getDiscipline(num)
+                course = int(input("Введите номер курса: "))
+                getDiscipline(course)
 
             elif command == 'c':
-                num = int(input("Введите номер курса: "))
-                getStudents(num)
+                course = int(input("Введите номер курса: "))
+                getStudents(course)
 
             elif command == 'd':
                 getDisciplines()
 
             elif command == 'e':
                 name = input("Введите имя студента: ")
-                num_course = int(input("Введите номер курса: "))
-                putStudent(name, num_course)
+                name = name.strip()
+                if not name.isnumeric():
+                    
+                    num_course = int(input("Введите номер курса: "))
+                    putStudent(name, num_course)
+
+                else:
+                    print(Fore.RED + "Некорректные данные имени.")
 
             elif command == 'f':
                 name = input("Введите название дисциплины: ")
-                day = input("Введите день занятия: ")
-                pair_number = int(input("Введите номер пары: "))
-                course = int(input("Введите номер курса: "))
+                name = name.strip()
+                if not name.isnumeric():
 
-                putDiscipline(name, day, pair_number, course)
+                    day = input("Введите день занятия: ")
+                    day = day.strip().lower()
+                    if not day.isnumeric() and day in DAY_WEEK:
+
+                        pair_number = int(input("Введите номер пары: "))
+                        course = int(input("Введите номер курса: "))
+                        putDiscipline(name, day, pair_number, course)
+                    
+                    else:print(Fore.RED + "Некорректные данные название.")
+
+                else:
+                    print(Fore.RED + "Некорректные данные имени.")
 
             elif command == 'g':
                 id = int(input("Введите ID: "))
